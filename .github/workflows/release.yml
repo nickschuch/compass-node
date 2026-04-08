@@ -29,7 +29,13 @@ jobs:
       - name: Build APK
         run: VERSION=${{ steps.version.outputs.version }} docker buildx bake apk-${{ matrix.arch }}
 
+      - name: Rename APK for release
+        run: |
+          for f in dist/apk/${{ matrix.arch }}/*.apk; do
+            mv "$f" "dist/apk/${{ matrix.arch }}/compass-node-${{ matrix.arch }}.apk"
+          done
+
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/apk/**/*.apk
+          files: dist/apk/${{ matrix.arch }}/compass-node-${{ matrix.arch }}.apk
