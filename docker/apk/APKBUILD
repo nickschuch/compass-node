@@ -17,15 +17,9 @@ makedepends="
 	npm
 "
 
-# Source is the local repository tree — populated by the snapshot() function.
-# abuild checksum is a no-op for local sources.
-builddir="$srcdir/compass-node"
-
-snapshot() {
-	mkdir -p "$builddir"
-	# The APKBUILD lives two levels deep (docker/apk/), so the repo root is ../../
-	cp -r "$startdir"/../../* "$builddir/"
-}
+# Build directly from the repo root. The APKBUILD lives two levels deep
+# (docker/apk/), so resolve the repo root to an absolute path.
+builddir="$(realpath "$startdir/../..")"
 
 build() {
 	# Set up mise to manage the Rust toolchain (version pinned in mise.toml).
@@ -39,7 +33,7 @@ build() {
 	export RUSTFLAGS="-C target-feature=-crt-static"
 
 	curl https://mise.run | sh
-	mise trust .
+	mise trust "$builddir"
 	mise exec -- cargo build --release
 
 	# Install JavaScript runtime dependencies.

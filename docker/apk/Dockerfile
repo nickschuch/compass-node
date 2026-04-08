@@ -7,30 +7,30 @@ FROM alpine:3.21
 
 ARG PKGVER=0.1.0
 
-RUN apk add --no-cache alpine-sdk
+# Intentionally not using --no-cache so that the package index remains
+# available for abuild -r to auto-install makedepends.
+RUN apk add alpine-sdk
 
-# Create a dedicated abuild user and generate a throwaway package signing key.
-# Key generation and installation are separate steps because abuild-keygen -i
-# requires doas/sudo to install the key, which is not available in the image.
-RUN adduser -D -G abuild abuild && \
-    su abuild -c "abuild-keygen -a -n" && \
-    cp /home/abuild/.abuild/*.rsa.pub /etc/apk/keys/
+# Generate a throwaway package signing key and install it.
+RUN abuild-keygen -a -n && \
+    cp /root/.abuild/*.rsa.pub /etc/apk/keys/
 
-USER abuild
-WORKDIR /home/abuild/compass-node
+WORKDIR /src
 
 # Copy all source into the working directory.
-COPY --chown=abuild:abuild . .
+COPY . .
 
 # Substitute the package version into the APKBUILD.
 RUN sed -i "s/^pkgver=.*/pkgver=${PKGVER}/" docker/apk/APKBUILD
 
 # Run abuild from the APKBUILD location.
-WORKDIR /home/abuild/compass-node/docker/apk
-RUN abuild -F checksum && abuild -F
+# -F allows running as root, -r auto-installs makedepends from the APKBUILD.
+WORKDIR /src/docker/apk
+RUN abuild -F -r
 
 # ---------------------------------------------------------------------------
 # Export stage — holds only the built .apk files for extraction via --output.
+# The glob flattens abuild's nested repo/arch directory structure.
 # ---------------------------------------------------------------------------
 FROM scratch
-COPY --from=0 /home/abuild/packages/ /
+COPY --from=0 /root/packages/*/*/*.apk /
