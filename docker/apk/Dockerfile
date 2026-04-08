@@ -10,8 +10,11 @@ ARG PKGVER=0.1.0
 RUN apk add --no-cache alpine-sdk
 
 # Create a dedicated abuild user and generate a throwaway package signing key.
+# Key generation and installation are separate steps because abuild-keygen -i
+# requires doas/sudo to install the key, which is not available in the image.
 RUN adduser -D -G abuild abuild && \
-    su abuild -c "abuild-keygen -a -i -n"
+    su abuild -c "abuild-keygen -a -n" && \
+    cp /home/abuild/.abuild/*.rsa.pub /etc/apk/keys/
 
 USER abuild
 WORKDIR /home/abuild/compass-node
