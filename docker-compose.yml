@@ -1,0 +1,22 @@
+services:
+
+  node:
+    build:
+      context: .
+      dockerfile: ./docker/compose/node/Dockerfile
+    ports:
+      - "3000:3000"
+    privileged: true
+    pid: "host"
+    environment:
+      - COMPASS_ENABLED=true
+      - COMPASS_FUNCTION_THRESHOLD=1
+    volumes:
+      - ./bpftrace:/data/bpftrace
+      - /sys/kernel/debug:/sys/kernel/debug:rw
+      - /sys/kernel/tracing:/sys/kernel/tracing:rw
+      - /lib/modules:/lib/modules:ro
+      - /usr/src:/usr/src:ro
+    ulimits:
+      memlock: -1
+ 

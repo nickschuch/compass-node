@@ -1,0 +1,17 @@
+[tools]
+rust = "1.91.1"
+
+[env]
+RUSTFLAGS = "-C target-feature=-crt-static"
+
+[tasks.lint]
+description = "Run linting on the Node.js native addon"
+run = "cargo fmt --all -- --check"
+
+[tasks.clippy]
+description = "Run clippy for static analysis"
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks.build]
+description = "Build the Compass Node.js native addon"
+run = "cargo build --release"

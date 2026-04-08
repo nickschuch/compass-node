@@ -1,0 +1,29 @@
+{
+  "name": "compass-node",
+  "version": "0.1.0",
+  "description": "Compass USDT tracing extension for Node.js",
+  "private": true,
+  "napi": {
+    "name": "compass",
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "x86_64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-unknown-linux-musl"
+      ]
+    }
+  },
+  "dependencies": {
+    "import-in-the-middle": "^1.12.0"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform"
+  }
+}

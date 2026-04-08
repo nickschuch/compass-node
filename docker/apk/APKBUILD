@@ -1,0 +1,64 @@
+# Maintainer: Skpr <platform@skpr.io>
+pkgname=compass-node
+pkgver=0.0.0
+pkgrel=0
+pkgdesc="Compass USDT tracing extension for Node.js"
+url="https://github.com/skpr/compass-node"
+arch="x86_64 aarch64"
+license="Apache-2.0"
+depends="nodejs"
+makedepends="
+	build-base
+	clang
+	clang-dev
+	curl
+	musl-dev
+	nodejs
+	npm
+"
+
+# Source is the local repository tree — populated by the snapshot() function.
+# abuild checksum is a no-op for local sources.
+builddir="$srcdir/compass-node"
+
+snapshot() {
+	mkdir -p "$builddir"
+	# The APKBUILD lives two levels deep (docker/apk/), so the repo root is ../../
+	cp -r "$startdir"/../../* "$builddir/"
+}
+
+build() {
+	# Set up mise to manage the Rust toolchain (version pinned in mise.toml).
+	export MISE_DATA_DIR="$builddir/.mise"
+	export MISE_CONFIG_DIR="$builddir"
+	export MISE_CACHE_DIR="$builddir/.mise/cache"
+	export MISE_INSTALL_PATH="/usr/local/bin/mise"
+	export PATH="$builddir/.mise/shims:$PATH"
+
+	# Build the native addon as a dynamically-linked musl .so (no crt-static).
+	export RUSTFLAGS="-C target-feature=-crt-static"
+
+	curl https://mise.run | sh
+	mise trust .
+	mise exec -- cargo build --release
+
+	# Install JavaScript runtime dependencies.
+	npm install --omit=dev
+}
+
+package() {
+	# Install the compiled native addon.
+	install -Dm755 "$builddir"/target/release/libcompass_node.so \
+		"$pkgdir"/usr/lib/compass/node/compass.node
+
+	# Install the JavaScript instrumentation layer.
+	mkdir -p "$pkgdir"/usr/lib/compass/node
+	cp -r "$builddir"/js/ "$pkgdir"/usr/lib/compass/node/js/
+	cp -r "$builddir"/node_modules/ "$pkgdir"/usr/lib/compass/node/node_modules/
+
+	# Install a profile.d snippet to activate the extension via NODE_OPTIONS.
+	install -Dm644 /dev/null \
+		"$pkgdir"/etc/profile.d/compass-node.sh
+	printf 'export NODE_OPTIONS="--import /usr/lib/compass/node/js/index.mjs"\n' \
+		> "$pkgdir"/etc/profile.d/compass-node.sh
+}
