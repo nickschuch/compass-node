@@ -92,3 +92,14 @@ This builds the extension, starts a test HTTP server on port 3000, and mounts th
 ## Releases
 
 APK packages are built automatically when a GitHub Release is published. The release workflow builds both `x86_64` and `aarch64` APKs in parallel and attaches them as release assets.
+
+### Installing in a Docker image
+
+```dockerfile
+ARG COMPASS_NODE_VERSION=1.0.0
+
+RUN wget -q -O /tmp/compass-node.apk \
+        "https://github.com/skpr/compass-node/releases/download/v${COMPASS_NODE_VERSION}/compass-node-$(apk --print-arch).apk" && \
+    apk add --allow-untrusted /tmp/compass-node.apk && \
+    rm /tmp/compass-node.apk
+```

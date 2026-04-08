@@ -201,7 +201,16 @@ function wrapExports(exported, moduleName, addon, canary, threshold) {
 }
 
 /**
- * Creates a timing wrapper around a function.
+ * Creates a timing wrapper around a function using a Proxy.
+ *
+ * Uses a Proxy with an `apply` trap instead of a replacement function to
+ * transparently preserve all static properties, prototype chains, and
+ * construction behaviour. This is critical because wrapExports() mutates
+ * module exports objects in-place, and some packages (e.g. safe-buffer)
+ * re-export built-in module objects by reference. A plain wrapper function
+ * would strip static methods like Buffer.from / Buffer.alloc, corrupting
+ * the shared built-in exports and crashing modules that depend on them.
+ *
  * Measures only synchronous execution time — the time spent on the call
  * stack before the function returns. For async functions this excludes
  * time spent awaiting Promises, which mirrors PHP's function_observer
@@ -213,28 +222,24 @@ function wrapExports(exported, moduleName, addon, canary, threshold) {
  * @param {Object} addon - The native compass addon.
  * @param {{ isEnabled: () => boolean }} canary - Canary checker.
  * @param {bigint} threshold - Threshold in nanoseconds.
- * @returns {Function} The wrapped function.
+ * @returns {Function} The proxied function.
  */
 function createWrapper(original, fnName, addon, canary, threshold) {
-    const wrapper = function (...args) {
-        // Fast path: if no tracer is attached, call the original directly.
-        if (!canary.isEnabled()) {
-            return original.apply(this, args);
-        }
+    return new Proxy(original, {
+        apply(target, thisArg, args) {
+            // Fast path: if no tracer is attached, call the original directly.
+            if (!canary.isEnabled()) {
+                return Reflect.apply(target, thisArg, args);
+            }
 
-        const startTime = process.hrtime.bigint();
-        try {
-            return original.apply(this, args);
-        } finally {
-            reportIfSlow(startTime, fnName, addon, threshold);
-        }
-    };
-
-    // Preserve function identity metadata.
-    Object.defineProperty(wrapper, 'name', { value: original.name || fnName });
-    Object.defineProperty(wrapper, 'length', { value: original.length });
-
-    return wrapper;
+            const startTime = process.hrtime.bigint();
+            try {
+                return Reflect.apply(target, thisArg, args);
+            } finally {
+                reportIfSlow(startTime, fnName, addon, threshold);
+            }
+        },
+    });
 }
 
 /**
