@@ -189,8 +189,16 @@ function initCjsHook(addon, canary, threshold) {
  * @param {bigint} threshold - Threshold in nanoseconds.
  */
 function wrapExports(exported, moduleName, addon, canary, threshold) {
-    for (const key of Object.keys(exported)) {
-        const original = exported[key];
+    const descriptors = Object.getOwnPropertyDescriptors(exported);
+    for (const key of Object.keys(descriptors)) {
+        const desc = descriptors[key];
+
+        // Skip accessor properties (getters/setters) — accessing them
+        // would invoke the getter with the wrong `this` context, and
+        // they represent computed properties rather than callable exports.
+        if (desc.get || desc.set) continue;
+
+        const original = desc.value;
 
         if (typeof original !== 'function') continue;
 
