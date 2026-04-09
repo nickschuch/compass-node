@@ -219,11 +219,13 @@ function wrapExports(exported, moduleName, addon, canary, threshold) {
  * would strip static methods like Buffer.from / Buffer.alloc, corrupting
  * the shared built-in exports and crashing modules that depend on them.
  *
- * Measures only synchronous execution time — the time spent on the call
- * stack before the function returns. For async functions this excludes
- * time spent awaiting Promises, which mirrors PHP's function_observer
- * behaviour and guarantees that http_function probes fire before
- * http_request_shutdown.
+ * Measures wall-clock time for both synchronous and asynchronous functions.
+ * For sync functions, time is measured from call to return. For functions
+ * that return a thenable (async functions, Promise-returning functions),
+ * time is measured from call to Promise settlement. This captures the
+ * real cost of async I/O operations (HTTP calls, DB queries, timers, etc.)
+ * which in PHP would be synchronous blocking calls measured by wall-clock
+ * time in the function_observer.
  *
  * @param {Function} original - The original function.
  * @param {string} fnName - Fully-qualified function name for the probe.
@@ -241,11 +243,28 @@ function createWrapper(original, fnName, addon, canary, threshold) {
             }
 
             const startTime = process.hrtime.bigint();
+            let result;
             try {
-                return Reflect.apply(target, thisArg, args);
-            } finally {
+                result = Reflect.apply(target, thisArg, args);
+            } catch (err) {
                 reportIfSlow(startTime, fnName, addon, threshold);
+                throw err;
             }
+
+            // If the function returned a thenable (async function or
+            // Promise-returning), measure the full async duration until
+            // settlement. This captures the real cost of async I/O
+            // (HTTP calls, DB queries, timers, etc.) which in PHP would
+            // be synchronous blocking calls.
+            if (result != null && typeof result.then === 'function') {
+                return result.then(
+                    (value) => { reportIfSlow(startTime, fnName, addon, threshold); return value; },
+                    (err)   => { reportIfSlow(startTime, fnName, addon, threshold); throw err; },
+                );
+            }
+
+            reportIfSlow(startTime, fnName, addon, threshold);
+            return result;
         },
     });
 }
